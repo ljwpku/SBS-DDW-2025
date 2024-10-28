@@ -5,7 +5,7 @@ All data tables saved under IRWD private database dev schema: DSVC_IRONWOOD_PRIV
 
 Core codes include
 1) Oct 2024: pt_continuous_enrollment:            
-       - A locked down version of the dbt model pt_closed_continuous_enrollment to fix the data table for September cohort                      
+       - A locked down version of the dbt model pt_closed_continuous_enrollment to fix the data table for October cohort                      
        - created table: "DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.pt_closed_continuous_enrollment_Oct2024" 
 2) Oct 2024: medical_events_tall:                           
        - Locked down version of the dbt model medical_events_tall to fix at September                
