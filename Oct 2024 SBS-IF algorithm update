@@ -1,0 +1,168 @@
+---------- Step 1: any PN or Hydration codes --------------------------
+
+create or replace table DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.me_SBS_step1 as
+
+select distinct
+    patient_id, 
+    service_date, 
+    year(service_date) as service_year,
+    month(service_date) as service_month,
+    procedure_code, 
+    code_description, 
+    trinitygroup2
+    
+from DSVC_IRONWOOD_PLAID_PROD.COHORT_1140177.MEDICAL_EVENTS_20241023 as me
+left join DSVC_IRONWOOD_PRIVATE.IRONWOOD_MAPPINGS.TRINITY_SBS_IF_CODE_REFERENCE as ref
+    on me.procedure_code = ref.code
+where trinitygroup2 in ('Hydration', 'Enternal Nutrition', 'Parenteral Nutrition')
+; 
+
+
+--------- Step 2: 2+ nutrition records, 6 months apart -----------------------------------   
+
+create or replace table DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.pt_SBS_step2 as 
+
+select patient_id, 
+       service_year, 
+       min(service_date) as first_PN_Year,     --- date of first PN record in the calender year 
+       max(service_date) as last_PN_Year,      --- date of last PN record in the calender year
+       datediff(month, first_PN_Year, last_PN_Year) as PN_apart_year      ---- months apart between first and last PN records in the calendar year
+from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.me_SBS_step1  
+where trinitygroup2 in ('Hydration', 'Parenteral Nutrition')     --- must be hydration or PN codes 
+group by patient_id, service_year     ---- calculate per patient per year
+having PN_apart_year >5
+;
+
+
+
+------------ Step 3: 2+ nutrition records per month  --------------------------------
+
+create or replace table DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.pt_SBS_step3 as 
+
+with pt_step2 as (
+
+select distinct
+    step1.patient_id, 
+    step1.service_year, 
+    step1.service_month, 
+    next_day(service_date, 'Sunday') as service_weekend, 
+    concat(step1.patient_id, service_weekend) as unique_visit_id 
+
+from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.me_SBS_step1 as step1
+inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.pt_SBS_step2 as step2
+    using (patient_id)
+
+)
+
+select patient_id, service_year, service_month, count(distinct unique_visit_id) as PN_per_month
+from pt_step2 
+group by patient_id, service_year, service_month
+having PN_per_month >1
+;
+
+
+------------ Step 4: Surgery or congenitcal etiology  -------------------------------------------
+---------------- Index date per patient defined in this step 
+
+create or replace table DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.pt_SBS_step4_IndexDate as 
+
+----- 4.1 Index PN date per patient per year ------------
+
+with pt_first_PN as (
+
+select step1.patient_id, 
+       step1.service_year,
+       min(service_date) as index_PN_year
+from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.ME_SBS_STEP1 as step1
+inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_STEP3 as step3
+    using (patient_id)
+group by step1.patient_id, step1.service_year
+
+),
+
+
+------- 4.2 look up surgical/congetinal diagnosis or procedure codes  ----------
+
+dx_px_lookup as (
+
+
+------ medical events procedures  
+select distinct
+    patient_id, 
+    service_date,
+    procedure_code as Dx_Px 
+   
+from DSVC_IRONWOOD_PLAID_PROD.COHORT_1140177.MEDICAL_EVENTS_20241023 as me
+left join DSVC_IRONWOOD_PRIVATE.IRONWOOD_MAPPINGS.TRINITY_SBS_IF_CODE_REFERENCE as ref
+    on me.procedure_code = ref.code
+where cohort in ('1', '2', '3')
+
+UNION
+
+------ medical events tall diagnosis  
+select distinct
+    patient_id, 
+    service_date, 
+    DX as Dx_Px
+    
+from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.MEDICAL_EVENTS_TALL_Oct2024 as met      
+left join DSVC_IRONWOOD_PRIVATE.IRONWOOD_MAPPINGS.TRINITY_SBS_IF_CODE_REFERENCE as ref
+    on met.DX = ref.code
+where cohort in ('1', '2', '3')
+
+), 
+
+------- 4.3) filter Dx/Px to before index date per year -------- 
+
+pt_lookup as (
+
+select distinct dx_px_lookup.*, service_year, index_PN_year
+from dx_px_lookup
+inner join pt_first_PN
+    using (patient_id)
+where service_date < index_pn_year
+
+) 
+
+------- 4.4) define index date per patient -------- 
+
+select patient_id, min(index_PN_year) as index_date
+from pt_lookup
+group by patient_id
+;
+
+
+-------- Step 5: malabsorption before index date ---------------------
+
+create or replace table DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.pt_SBS_step5 as 
+
+with dx_mal as (         ---- look up malabsorption Dx codes 
+
+select distinct
+    patient_id,
+    service_date as malDx_date,
+    DX
+    
+from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.MEDICAL_EVENTS_TALL_Oct2024 as met       
+left join DSVC_IRONWOOD_PRIVATE.IRONWOOD_MAPPINGS.TRINITY_SBS_IF_CODE_REFERENCE as ref
+    on met.DX = ref.code
+where trinitygroup2 = 'Malabsorption'
+
+)
+
+
+select distinct
+    dx_mal.patient_id, index_date
+from dx_mal
+inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.pt_SBS_step4_IndexDate as step4
+    using (patient_id)
+where malDx_date < index_date
+;
+
+
+select year(index_date), count(distinct patient_id)
+from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.pt_SBS_step5
+group by year(index_date)
+order by year(index_date);
+
+
