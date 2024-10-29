@@ -1,0 +1,48 @@
+------ 1) create patient level SBS-flag table 
+
+create or replace table DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_coded as 
+
+select 
+    patient_id, 
+    max(DX in ('K90821', 'K90822', 'K90829', 'K9083')) as SBS_flag, 
+    max(DX='K9083') as IF_flag, 
+    max(DX='K90821') as SBS_CIC_flag,     /// w CIC
+    max(DX='K90822') as SBS_wo_CIC_flag,     /// without CIC
+    max(DX='K90829') as SBS_uns_flag         /// unspecified
+    
+from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.MEDICAL_EVENTS_TALL_Oct2024 as met     
+group by patient_id
+;
+
+
+------ 2) build option 1 cohort for analysis 
+
+create or replace table DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.option1_cohort as 
+
+select distinct 
+    step5.*, 
+    patient_gender, 
+    patient_yob, 
+    floor((index_date - patient_yob)/365) as age_at_index,
+    floor((current_date() - patient_yob)/365) as current_age,
+    patient_race_ethnicity,
+    coalesce(SBS_flag, false) as pt_SBS_flag, 
+    coalesce(IF_flag, false) as pt_IF_flag, 
+    coalesce(SBS_CIC_flag, false) as pt_SBS_CIC_flag, 
+    coalesce(SBS_wo_CIC_flag, false) as pt_SBS_wo_CIC_flag, 
+    coalesce(SBS_uns_flag, false) as pt_SBS_uns_flag
+    
+from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_STEP5 as step5
+inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_step6_active as step6
+    on step5.patient_id = step6.patient_id
+inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_CLOSED_CONTINUOUS_ENROLLMENT_SEP2024 as enroll
+    on step5.patient_id = enroll.patient_id
+left join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_coded as sbs_table
+    on step5.patient_id = SBS_table.patient_id
+left join DSVC_IRONWOOD_PLAID_PROD.COHORT_1140177.PATIENT_DEMOGRAPHICS_20241023 as demo
+    on step5.patient_id = demo.patient_id
+left join DSVC_IRONWOOD_PLAID_PROD.COHORT_1140177.PATIENT_RACE_ETHNICITY_20241023 as race
+    on step5.patient_id = race.patient_id
+where start_date <= '2023-01-01' and end_date >= '2024-03-31'
+
+;
