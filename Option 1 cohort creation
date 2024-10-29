@@ -35,7 +35,7 @@ select distinct
 from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_STEP5 as step5
 inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_step6_active as step6
     on step5.patient_id = step6.patient_id
-inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_CLOSED_CONTINUOUS_ENROLLMENT_SEP2024 as enroll
+inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_CLOSED_CONTINUOUS_ENROLLMENT_OCT2024 as enroll
     on step5.patient_id = enroll.patient_id
 left join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_coded as sbs_table
     on step5.patient_id = SBS_table.patient_id
