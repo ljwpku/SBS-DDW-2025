@@ -10,7 +10,8 @@ select
     max(DX='K90822') as SBS_wo_CIC_flag,     /// without CIC
     max(DX='K90829') as SBS_uns_flag         /// unspecified
     
-from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.MEDICAL_EVENTS_TALL_Oct2024 as met     
+from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.MEDICAL_EVENTS_TALL_Oct2024 as met  
+where service_date <= '2024-06-30'
 group by patient_id
 ;
 
@@ -43,6 +44,6 @@ left join DSVC_IRONWOOD_PLAID_PROD.COHORT_1140177.PATIENT_DEMOGRAPHICS_20241023 
     on step5.patient_id = demo.patient_id
 left join DSVC_IRONWOOD_PLAID_PROD.COHORT_1140177.PATIENT_RACE_ETHNICITY_20241023 as race
     on step5.patient_id = race.patient_id
-where start_date <= '2023-01-01' and end_date >= '2024-03-31'
+where start_date <= '2023-01-01' and end_date >= '2024-06-30'
 
 ;
