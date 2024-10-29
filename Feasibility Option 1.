@@ -4,7 +4,7 @@ select count(distinct patient_id)
 from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_STEP5
 ;
 
-------- 2) Met Trinity criteria #3 between jan.2023 and Mar.2024, active PN dependent 
+------- 2) Met Trinity criteria #3 between jan.2023 and June.2024, active PN dependent 
 
 /// Trinity criteria 3: 2+ nutrition records per month  
 
@@ -22,7 +22,7 @@ select distinct
 from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.me_SBS_step1 as step1
 inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_STEP5 as step5
     using (patient_id)
-where service_weekend >= '2023-01-01' and service_weekend <= '2024-03-31'
+where service_weekend >= '2023-01-01' and service_weekend <= '2024-06-30'
 
 ) 
 
@@ -37,13 +37,13 @@ from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_step6_active
 ;
 
 
----------- 3) Continuously enrolled between jan.2023 and Mar.2024 
+---------- 3) Continuously enrolled between jan.2023 and June.2024 
 
 select count(distinct cohort.patient_id) 
 from DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_SBS_step6_active 
 inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_CLOSED_CONTINUOUS_ENROLLMENT_OCT2024
     using (patient_id)
-where start_date <= '2023-01-01' and end_date >= '2024-03-31'
+where start_date <= '2023-01-01' and end_date >= '2024-06-30'
 ;
 
 
@@ -55,7 +55,8 @@ inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.PT_CLOSED_CONTINUOUS_ENROLLMENT_
     on step6.patient_id, enroll.patient_id
 inner join DSVC_IRONWOOD_PRIVATE.DEV_DDW2025_JL.MEDICAL_EVENTS_TALL_Oct2024 as met
     on step6.patient_id = met.patient_id
-where start_date <= '2023-01-01' and end_date >= '2024-03-31'
+where start_date <= '2023-01-01' and end_date >= '2024-06-30'
     and DX in ('K90821', 'K90822', 'K90829', 'K9083')
+    and met.service_date <= '2024-06-30'
 ;
 
